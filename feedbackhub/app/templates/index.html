@@ -1,0 +1,95 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>FeedbackHub</title>
+  <style>
+    body { font-family: system-ui, sans-serif; max-width: 720px; margin: 2rem auto; padding: 0 1rem; color: #1f2933; }
+    h1 { margin-bottom: .25rem; }
+    label { display: block; margin-top: .9rem; font-weight: 600; }
+    input, select, textarea { width: 100%; padding: .5rem; margin-top: .25rem; box-sizing: border-box; font: inherit; }
+    button { margin-top: 1rem; padding: .6rem 1.2rem; font: inherit; cursor: pointer; }
+    .msg { margin-top: 1rem; padding: .6rem; border-radius: 4px; display: none; }
+    .ok { background: #e3f9e5; display: block; }
+    .err { background: #ffe3e3; display: block; }
+    .stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: .75rem; margin: 1.5rem 0; }
+    .card { border: 1px solid #d9e2ec; border-radius: 6px; padding: .75rem; }
+    .card b { display: block; font-size: 1.4rem; }
+  </style>
+</head>
+<body>
+  <h1>FeedbackHub</h1>
+  <p>Tell us about your experience.</p>
+
+  <div class="stats" id="stats" aria-live="polite"></div>
+
+  <form id="form">
+    <label for="name">Name</label>
+    <input id="name" name="name" required maxlength="100">
+    <label for="email">Email</label>
+    <input id="email" name="email" type="email" required>
+    <label for="channel">Channel</label>
+    <select id="channel" name="channel">
+      {% for c in channels %}<option value="{{ c }}">{{ c }}</option>{% endfor %}
+    </select>
+    <label for="rating">Rating (1-5)</label>
+    <input id="rating" name="rating" type="number" min="1" max="5" required>
+    <label for="message">Message</label>
+    <textarea id="message" name="message" rows="4" required minlength="5" maxlength="1000"></textarea>
+    <button type="submit">Submit feedback</button>
+  </form>
+  <div id="result" class="msg" role="status"></div>
+
+  <script>
+    const result = document.getElementById("result");
+    const stats = document.getElementById("stats");
+
+    function show(text, ok) {
+      result.textContent = text;
+      result.className = "msg " + (ok ? "ok" : "err");
+    }
+
+    function card(label, value) {
+      const div = document.createElement("div");
+      div.className = "card";
+      const b = document.createElement("b");
+      b.textContent = value ?? "-";
+      div.append(b, label);
+      return div;
+    }
+
+    async function loadStats() {
+      const res = await fetch("/api/analytics/summary");
+      const s = await res.json();
+      stats.replaceChildren(
+        card("Total responses", s.total),
+        card("Average rating", s.average_rating),
+        card("Positive", s.by_sentiment.positive),
+        card("Negative", s.by_sentiment.negative)
+      );
+    }
+
+    document.getElementById("form").addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const data = Object.fromEntries(new FormData(e.target));
+      data.rating = parseInt(data.rating, 10);
+      const res = await fetch("/api/feedback", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(data),
+      });
+      const body = await res.json();
+      if (res.ok) {
+        show("Thanks! Detected sentiment: " + body.sentiment, true);
+        e.target.reset();
+        loadStats();
+      } else {
+        show(Object.values(body.details || { error: body.error }).join("; "), false);
+      }
+    });
+
+    loadStats();
+  </script>
+</body>
+</html>

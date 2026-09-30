@@ -1,0 +1,68 @@
+openapi: 3.0.3
+info:
+  title: FeedbackHub API
+  version: 1.0.0
+  description: Collects customer feedback across channels and reports simple analytics.
+paths:
+  /health:
+    get:
+      summary: Liveness and database check
+      responses:
+        "200": { description: OK }
+  /api/feedback:
+    post:
+      summary: Submit feedback
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/FeedbackInput" }
+      responses:
+        "201": { description: Created (Location header points to the new resource) }
+        "400": { description: Validation failed }
+    get:
+      summary: List feedback (paginated)
+      parameters:
+        - { name: page, in: query, schema: { type: integer, minimum: 1, default: 1 } }
+        - { name: per_page, in: query, schema: { type: integer, minimum: 1, maximum: 100, default: 20 } }
+        - { name: channel, in: query, schema: { type: string, enum: [web, mobile, email, social] } }
+        - { name: sentiment, in: query, schema: { type: string, enum: [positive, neutral, negative] } }
+      responses:
+        "200": { description: Paginated list }
+        "400": { description: Invalid query parameter }
+  /api/feedback/{id}:
+    get:
+      summary: Get one feedback item
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: integer } }
+      responses:
+        "200": { description: OK }
+        "404": { description: Not found }
+    delete:
+      summary: Delete one feedback item
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: integer } }
+      responses:
+        "204": { description: Deleted }
+        "404": { description: Not found }
+  /api/feedback/export:
+    get:
+      summary: Export feedback as CSV (supports channel and sentiment filters)
+      responses:
+        "200": { description: CSV file }
+  /api/analytics/summary:
+    get:
+      summary: Totals, average rating and breakdowns by sentiment, channel and rating
+      responses:
+        "200": { description: OK }
+components:
+  schemas:
+    FeedbackInput:
+      type: object
+      required: [name, email, rating, message]
+      properties:
+        name: { type: string, maxLength: 100 }
+        email: { type: string, format: email }
+        channel: { type: string, enum: [web, mobile, email, social], default: web }
+        rating: { type: integer, minimum: 1, maximum: 5 }
+        message: { type: string, minLength: 5, maxLength: 1000 }
